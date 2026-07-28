@@ -210,7 +210,10 @@ def get_hotel_divs(html):
         n = int(re.search(r"divHotel(\d+)", div["id"]).group(1))
         name_span = soup.find("span", id=f"MainPane_MainContent_lblHotel{n}")
         hotel_name = name_span.get_text(strip=True) if name_span else ""
-        hotel_divs.append({"index": n, "name": hotel_name})
+        room_type_span = soup.find("span", id=f"MainPane_MainContent_lblRoomType{n}")
+        room_type_raw = room_type_span.get_text(strip=True) if room_type_span else ""
+        room_type = re.sub(r"\bBED\b", "", room_type_raw, flags=re.IGNORECASE).strip()
+        hotel_divs.append({"index": n, "name": hotel_name, "room_type": room_type})
     hotel_divs.sort(key=lambda x: x["index"])
     return hotel_divs
 
@@ -294,8 +297,14 @@ def process_voucher(session, voucher_no, excel_rows, log_fn=print, results=None)
             })
             continue
 
-        price = compute_price(row["room_type"], row["rate"])
-        log_fn(f"  [{n}] {match['name']}: rate {row['rate']} / {row['room_type']} -> setting custom price = {price}")
+        html_room_type = match.get("room_type")
+        if not html_room_type:
+            log_fn(f"  [{n}] {match['name']}: room type not found on page -> skipping")
+            results[voucher_no]["hotels"].append({"hotel": match["name"], "status": "room_type_not_found"})
+            continue
+
+        price = compute_price(html_room_type, row["rate"])
+        log_fn(f"  [{n}] {match['name']}: rate {row['rate']} / {html_room_type} (from page) -> setting custom price = {price}")
 
         form_data[checkbox_name] = "C"
         form_data[price_name] = str(price)

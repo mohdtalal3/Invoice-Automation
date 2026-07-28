@@ -1,5 +1,6 @@
 import os
 import io
+import re
 import threading
 from collections import defaultdict
 from datetime import datetime
@@ -33,23 +34,75 @@ STATE = {
 LOCK = threading.Lock()
 
 
-# ── Helpers ──────────────────────────────────────────────────────────────
+REQUIRED_COLUMNS = ["VOUCHER", "HOTEL", "ROOM RATE"]
+
+
+class ExcelValidationError(Exception):
+    pass
+
+
+def _normalize_header(h):
+    return re.sub(r"[^A-Z]", " ", str(h or "").upper()).strip()
+    # collapses things like "VOUCHER # " / "ROOM RATE " into "VOUCHER" / "ROOM RATE"
+
+
 def read_excel_from_bytes(file_bytes):
     wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
     ws = wb.active
+
+    header_row = next(ws.iter_rows(min_row=1, max_row=1, values_only=True), None)
+    if not header_row:
+        raise ExcelValidationError("The Excel file is empty or has no header row.")
+
+    normalized_headers = [_normalize_header(h) for h in header_row]
+
+    col_index = {}
+    missing = []
+    for required in REQUIRED_COLUMNS:
+        req_norm = _normalize_header(required)
+        found_idx = None
+        for idx, h in enumerate(normalized_headers):
+            if h == req_norm or h.startswith(req_norm):
+                found_idx = idx
+                break
+        if found_idx is None:
+            missing.append(required)
+        else:
+            col_index[required] = found_idx
+
+    if missing:
+        raise ExcelValidationError(
+            f"Missing or incorrectly named column(s): {', '.join(missing)}. "
+            f"Expected columns: {', '.join(REQUIRED_COLUMNS)}. "
+            f"Found headers: {', '.join(str(h) for h in header_row if h)}"
+        )
+
+    v_idx, h_idx, r_idx = (
+        col_index["VOUCHER"], col_index["HOTEL"], col_index["ROOM RATE"]
+    )
+
     rows = []
-    for r in ws.iter_rows(min_row=2, values_only=True):
-        if not r or r[0] is None:
+    for row_num, r in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+        if not r or r[v_idx] is None:
             continue
-        voucher_raw, hotel, room_type, rate = r[0], r[1], r[2], r[3]
+        voucher_raw, hotel, rate = r[v_idx], r[h_idx], r[r_idx]
         if hotel is None or rate is None:
             continue
+        try:
+            rate_val = float(rate)
+        except (TypeError, ValueError):
+            raise ExcelValidationError(
+                f"Row {row_num}: 'Room Rate' value '{rate}' is not a valid number."
+            )
         rows.append({
             "voucher": clean_voucher_no(voucher_raw),
             "hotel": str(hotel).strip(),
-            "room_type": str(room_type).strip(),
-            "rate": float(rate),
+            "rate": rate_val,
         })
+
+    if not rows:
+        raise ExcelValidationError("No valid data rows found in the Excel file.")
+
     return rows
 
 
@@ -134,11 +187,10 @@ def upload():
     file_bytes = file.read()
     try:
         rows = read_excel_from_bytes(file_bytes)
+    except ExcelValidationError as e:
+        return jsonify({"error": str(e)}), 400
     except Exception as e:
         return jsonify({"error": f"Failed to read Excel: {str(e)}"}), 400
-
-    if not rows:
-        return jsonify({"error": "No valid rows found in Excel"}), 400
 
     with LOCK:
         STATE["excel_rows"] = rows

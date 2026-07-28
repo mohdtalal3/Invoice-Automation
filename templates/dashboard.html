@@ -359,7 +359,7 @@
         <div class="upload-area" id="upload-area" onclick="document.getElementById('file-input').click()">
           <div class="upload-icon">📁</div>
           <p>Tap to select an .xlsx file</p>
-          <p style="font-size:0.75rem; margin-top:0.25rem">Columns: Voucher #, Hotel, Room Type, Room Rate</p>
+          <p style="font-size:0.75rem; margin-top:0.25rem">Columns: Voucher #, Hotel, Room Rate</p>
         </div>
         <input type="file" id="file-input" accept=".xlsx,.xls">
         <div id="file-name-display" class="file-name text-center mt-1" style="display:none"></div>
@@ -576,7 +576,8 @@
         const invoiced = hotels.filter(h => h.status === 'invoiced').length;
         const already = hotels.filter(h => h.status === 'already_invoiced').length;
         const notFound = hotels.filter(h => h.status === 'not_found').length;
-        const summary = `${invoiced} new · ${already} existing · ${notFound} not found`;
+        const noRoomType = hotels.filter(h => h.status === 'room_type_not_found').length;
+        const summary = `${invoiced} new · ${already} existing · ${notFound} not found · ${noRoomType} no room type`;
 
         html += `<div class="voucher-card">
           <div class="voucher-header" onclick="this.nextElementSibling.classList.toggle('open')">
@@ -591,9 +592,11 @@
         for (const h of hotels) {
           const cls = h.status === 'invoiced' ? 'status-invoiced'
             : h.status === 'already_invoiced' ? 'status-already'
+            : h.status === 'room_type_not_found' ? 'status-error'
             : 'status-not_found';
           const label = h.status === 'invoiced' ? 'Invoiced'
             : h.status === 'already_invoiced' ? 'Already Invoiced'
+            : h.status === 'room_type_not_found' ? 'Room Type Missing'
             : 'Not Found';
           html += `<tr><td>${escapeHtml(h.hotel)}</td><td><span class="status-badge ${cls}">${label}</span></td><td style="white-space:nowrap">${h.price ?? '—'}</td></tr>`;
         }

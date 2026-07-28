@@ -14,12 +14,12 @@ Flask web app that automates hotel invoice generation on the basmaemaargroup CRM
 
 ## Excel Format
 
-File must be `.xlsx` with these columns (row 1 = headers):
+File must be `.xlsx` with these columns (row 1 = headers). Room Type is read from the CRM page directly, not from Excel:
 
-| Voucher # | Hotel | Room Type | Room Rate |
-|-----------|-------|-----------|-----------|
-| 102524    | TALAL MASHAD | QUAD | 100 |
-| 102524    | DIYAR AL HIJAZ | QUINT | 135 |
+| Voucher # | Hotel | Room Rate |
+|-----------|-------|-----------|
+| 102524    | TALAL MASHAD | 100 |
+| 102524    | DIYAR AL HIJAZ | 135 |
 
 ## Features
 
