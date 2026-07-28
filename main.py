@@ -1,5 +1,6 @@
 import os
 import re
+import time
 import json
 import requests
 import openpyxl
@@ -53,9 +54,15 @@ def compute_price(room_type, rate):
 
 
 def login(session):
-    tz = timezone(timedelta(hours=5))
-    now = datetime.now(tz)
-    dt_str = now.strftime("%a %b %d %Y %H:%M:%S GMT+0500 (Pakistan Standard Time)")
+    now = datetime.now()
+    offset = now.utcoffset()
+    if offset is None:
+        offset = timedelta(hours=0)
+    offset_hours = int(offset.total_seconds() // 3600)
+    offset_sign = "+" if offset_hours >= 0 else "-"
+    offset_str = f"GMT{offset_sign}{abs(offset_hours):02d}00"
+    tz_name = time.tzname[0] if time.daylight == 0 else time.tzname[1]
+    dt_str = now.strftime(f"%a %b %d %Y %H:%M:%S {offset_str} ({tz_name})")
     dt_local_date = now.strftime("%d/%m/%Y")
 
     headers = COMMON_HEADERS.copy()
