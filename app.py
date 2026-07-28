@@ -192,6 +192,22 @@ def status():
     })
 
 
+@app.route("/reset", methods=["POST"])
+def reset():
+    if not session.get("logged_in"):
+        return jsonify({"error": "Not logged in"}), 401
+    with LOCK:
+        if STATE["processing"]:
+            return jsonify({"error": "Cannot reset while processing"}), 400
+        STATE["excel_rows"] = []
+        STATE["unique_vouchers"] = []
+        STATE["results"] = {}
+        STATE["logs"] = []
+        STATE["done"] = False
+        STATE["filename"] = ""
+    return jsonify({"status": "ok"})
+
+
 @app.route("/logout")
 def logout():
     session.clear()

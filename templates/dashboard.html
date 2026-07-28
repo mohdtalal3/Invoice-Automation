@@ -494,7 +494,7 @@
       fileNameDisplay.style.display = 'none';
       uploadBtn.disabled = true;
       uploadBtn.textContent = 'Upload & Preview';
-      pollStatus();
+      fetch('/reset', { method: 'POST' }).then(() => pollStatus());
     }
 
     // ── Section helpers ──────────────────────────────────────
