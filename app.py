@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from main import (
     login, process_voucher, clean_voucher_no, BASE,
 )
+from ocr import image_to_rows, OCRError
 
 load_dotenv()
 
@@ -171,6 +172,16 @@ def dashboard():
     return render_template("dashboard.html")
 
 
+def _apply_new_rows(rows, filename):
+    with LOCK:
+        STATE["excel_rows"] = rows
+        STATE["unique_vouchers"] = sorted(set(r["voucher"] for r in rows))
+        STATE["results"] = {}
+        STATE["logs"] = []
+        STATE["done"] = False
+        STATE["filename"] = filename
+
+
 @app.route("/upload", methods=["POST"])
 def upload():
     if not session.get("logged_in"):
@@ -192,17 +203,42 @@ def upload():
     except Exception as e:
         return jsonify({"error": f"Failed to read Excel: {str(e)}"}), 400
 
-    with LOCK:
-        STATE["excel_rows"] = rows
-        STATE["unique_vouchers"] = sorted(set(r["voucher"] for r in rows))
-        STATE["results"] = {}
-        STATE["logs"] = []
-        STATE["done"] = False
-        STATE["filename"] = file.filename
+    _apply_new_rows(rows, file.filename)
 
     return jsonify({
         "unique_vouchers": STATE["unique_vouchers"],
         "total_rows": len(rows),
+        "filename": STATE["filename"],
+    })
+
+
+@app.route("/upload_image", methods=["POST"])
+def upload_image():
+    if not session.get("logged_in"):
+        return jsonify({"error": "Not logged in"}), 401
+
+    with LOCK:
+        if STATE["processing"]:
+            return jsonify({"error": "Cannot upload while processing is running"}), 400
+
+    file = request.files.get("image_file")
+    if not file or not file.filename:
+        return jsonify({"error": "No image uploaded"}), 400
+
+    file_bytes = file.read()
+    try:
+        rows, skipped = image_to_rows(file_bytes, file.filename)
+    except OCRError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": f"Failed to process image: {str(e)}"}), 400
+
+    _apply_new_rows(rows, file.filename)
+
+    return jsonify({
+        "unique_vouchers": STATE["unique_vouchers"],
+        "total_rows": len(rows),
+        "skipped_rows": skipped,
         "filename": STATE["filename"],
     })
 

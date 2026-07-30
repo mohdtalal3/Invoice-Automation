@@ -366,6 +366,18 @@
         <button id="upload-btn" class="btn btn-primary mt-2" disabled>Upload &amp; Preview</button>
         <div id="upload-error" class="text-center text-muted mt-1" style="font-size:0.85rem;color:var(--red);display:none"></div>
       </div>
+      <div class="card">
+        <div class="card-title">Or Scan an Image</div>
+        <div class="upload-area" id="image-upload-area" onclick="document.getElementById('image-input').click()">
+          <div class="upload-icon">🖼️</div>
+          <p>Tap to select a photo of the voucher table</p>
+          <p style="font-size:0.75rem; margin-top:0.25rem">Rows with a non-numeric rate will be skipped</p>
+        </div>
+        <input type="file" id="image-input" accept="image/*">
+        <div id="image-name-display" class="file-name text-center mt-1" style="display:none"></div>
+        <button id="image-upload-btn" class="btn btn-primary mt-2" disabled>Scan &amp; Preview</button>
+        <div id="image-upload-error" class="text-center text-muted mt-1" style="font-size:0.85rem;color:var(--red);display:none"></div>
+      </div>
     </div>
 
     <!-- Section: Ready (excel uploaded, not processing) -->
@@ -443,6 +455,51 @@
       }
     });
 
+    // ── Image upload handling ────────────────────────────────
+    let selectedImage = null;
+    const imageInput = document.getElementById('image-input');
+    const imageUploadBtn = document.getElementById('image-upload-btn');
+    const imageNameDisplay = document.getElementById('image-name-display');
+
+    imageInput.addEventListener('change', (e) => {
+      if (e.target.files.length) {
+        selectedImage = e.target.files[0];
+        imageNameDisplay.textContent = selectedImage.name;
+        imageNameDisplay.style.display = 'block';
+        imageUploadBtn.disabled = false;
+      }
+    });
+
+    imageUploadBtn.addEventListener('click', async () => {
+      if (!selectedImage) return;
+      imageUploadBtn.disabled = true;
+      imageUploadBtn.textContent = 'Scanning image...';
+      const errEl = document.getElementById('image-upload-error');
+      errEl.style.display = 'none';
+
+      const formData = new FormData();
+      formData.append('image_file', selectedImage);
+
+      try {
+        const res = await fetch('/upload_image', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.error) {
+          errEl.textContent = data.error;
+          errEl.style.display = 'block';
+          imageUploadBtn.disabled = false;
+          imageUploadBtn.textContent = 'Scan & Preview';
+        } else {
+          imageUploadBtn.textContent = 'Scan & Preview';
+          pollStatus();
+        }
+      } catch (err) {
+        errEl.textContent = 'Network error: ' + err.message;
+        errEl.style.display = 'block';
+        imageUploadBtn.disabled = false;
+        imageUploadBtn.textContent = 'Scan & Preview';
+      }
+    });
+
     uploadBtn.addEventListener('click', async () => {
       if (!selectedFile) return;
       uploadBtn.disabled = true;
@@ -494,6 +551,11 @@
       fileNameDisplay.style.display = 'none';
       uploadBtn.disabled = true;
       uploadBtn.textContent = 'Upload & Preview';
+      selectedImage = null;
+      imageInput.value = '';
+      imageNameDisplay.style.display = 'none';
+      imageUploadBtn.disabled = true;
+      imageUploadBtn.textContent = 'Scan & Preview';
       fetch('/reset', { method: 'POST' }).then(() => pollStatus());
     }
 
